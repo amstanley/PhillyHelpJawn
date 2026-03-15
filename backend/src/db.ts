@@ -21,8 +21,8 @@ export async function searchResources(
   let query = supabase.from("resources").select("*");
 
   if (category) {
-    // ilike for case-insensitive match (Claude may send "shelter" vs "Shelter")
-    query = query.ilike("category", category);
+    // Fuzzy match so "Job" matches "Job services", etc.
+    query = query.ilike("category", `%${category}%`);
   }
   if (eligibility) {
     query = query.ilike("eligibility", `%${eligibility}%`);
