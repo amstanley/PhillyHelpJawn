@@ -97,7 +97,7 @@ Executes a Supabase query: filters by `category` (exact match) if provided, `ili
 3. Claude calls `search_resources` with extracted filters
 4. Server executes Supabase query, returns results to Claude as tool_result
 5. Claude generates plain-language `message` and indicates which resources it's recommending
-6. Server returns `{ message, resources }` where `resources` are the rows Claude selected
+6. Server returns `{ message, resources }` where `resources` is all rows returned by the query (Claude's `message` highlights the most relevant ones; the iOS app gets the full set for UI rendering)
 
 ## Project Structure
 
