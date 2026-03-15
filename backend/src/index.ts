@@ -1,0 +1,79 @@
+import "dotenv/config";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { serve } from "@hono/node-server";
+import { handleQuery } from "./agent.js";
+import { computeDistance } from "./geo.js";
+import { AssistRequestSchema } from "./types.js";
+import type {
+  AssistResponse,
+  ErrorResponse,
+  ResourceWithDistance,
+} from "./types.js";
+
+const app = new Hono();
+app.use("*", cors());
+
+app.post("/v1/assist/query", async (c) => {
+  const body = await c.req.json();
+
+  const parsed = AssistRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    const firstError = parsed.error.issues[0].message;
+    const errResp: ErrorResponse = {
+      requestId: body.requestId ?? "unknown",
+      timestamp: new Date().toISOString(),
+      error: firstError,
+    };
+    return c.json(errResp, 400);
+  }
+
+  const req = parsed.data;
+
+  try {
+    const { message, resources, crisis } = await handleQuery(req.queryText);
+
+    const resourcesWithDistance: ResourceWithDistance[] = resources.map(
+      (r) => ({
+        ...r,
+        distanceKm: req.location
+          ? Math.round(
+              computeDistance(req.location.lat, req.location.lng, r.lat, r.lng) *
+                10
+            ) / 10
+          : null,
+      })
+    );
+
+    if (req.location) {
+      resourcesWithDistance.sort(
+        (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity)
+      );
+    }
+
+    const response: AssistResponse = {
+      requestId: req.requestId,
+      timestamp: new Date().toISOString(),
+      message,
+      resources: resourcesWithDistance,
+      crisis,
+    };
+
+    return c.json(response);
+  } catch (err) {
+    console.error("Agent error:", err);
+    const response: AssistResponse = {
+      requestId: req.requestId,
+      timestamp: new Date().toISOString(),
+      message: "Sorry, I'm having trouble right now. Please try again.",
+      resources: [],
+      crisis: null,
+    };
+    return c.json(response);
+  }
+});
+
+const port = Number(process.env.PORT) || 3000;
+serve({ fetch: app.fetch, port }, () => {
+  console.log(`PhillyHelpJawn backend running on http://localhost:${port}`);
+});
