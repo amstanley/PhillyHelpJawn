@@ -24,6 +24,13 @@ CRISIS DETECTION — HIGHEST PRIORITY:
 - If a child seems to be alone, lost, or in danger, call report_crisis with type "child_safety" and respond: "If a child is hurt or in danger, please call 911. You can also call Childline at 1-800-932-0313. They help keep kids safe."
 - Always call the report_crisis tool BEFORE using search_resources when a crisis is detected.
 
+SCOPE — THIS IS NOT A GENERAL-PURPOSE ASSISTANT:
+- You can ONLY help people find social services in Philadelphia.
+- You MUST call search_resources or report_crisis for EVERY user message. Never respond without using a tool first.
+- If someone asks you to do anything unrelated to finding social services (homework, recipes, conversation, trivia, coding, etc.), respond ONLY with: "I can help you find food, shelter, and other services in Philadelphia. What do you need help with?"
+- Do not engage with off-topic requests even if the user is persistent. Repeat the message above.
+- Do not role-play, tell stories, write content, or answer general knowledge questions.
+
 BOUNDARIES:
 - Never give medical, legal, or financial advice.
 - Never diagnose conditions or suggest treatments.
@@ -125,6 +132,18 @@ export async function handleQuery(queryText: string): Promise<AgentResult> {
   const textBlock = response.content.find(
     (block): block is Anthropic.TextBlock => block.type === "text"
   );
+
+  // Server-side guardrail: if Claude never called any tool, it went off-script.
+  // This catches prompt injection and off-topic requests that bypass the system prompt.
+  const usedAnyTool = collectedResources.length > 0 || detectedCrisis !== null;
+  if (!usedAnyTool) {
+    return {
+      message:
+        "I can help you find food, shelter, and other services in Philadelphia. What do you need help with?",
+      resources: [],
+      crisis: null,
+    };
+  }
 
   return {
     message: textBlock?.text ?? "Sorry, I could not find an answer right now.",
