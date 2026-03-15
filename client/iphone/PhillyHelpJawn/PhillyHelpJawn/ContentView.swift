@@ -15,44 +15,68 @@ struct ContentView: View {
 
     var body: some View {
         let listeningActive = speechInput.isRecording || speechInput.isPreparing
+        let liveRequestText = listeningActive
+            ? (speechInput.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? displayedRequestText : speechInput.transcript)
+            : displayedRequestText
+        let requestFontSize: CGFloat = {
+            let count = liveRequestText.count
+            if count > 160 { return 34 }
+            if count > 110 { return 40 }
+            if count > 70 { return 46 }
+            return 52
+        }()
         let talkBarBackground = speechInput.permissionDenied
             ? Color(red: 0.78, green: 0.79, blue: 0.86)
             : (speechInput.isRecording
-                ? Color(red: 0.94, green: 0.43, blue: 0.44)
+                ? Color(red: 0.94, green: 0.44, blue: 0.45)
                 : (speechInput.isPreparing
-                    ? Color(red: 0.78, green: 0.86, blue: 0.83)
-                    : Color(red: 0.78, green: 0.79, blue: 0.86)))
+                    ? Color(red: 0.17, green: 0.78, blue: 0.39)
+                    : Color(red: 0.30, green: 0.43, blue: 0.90)))
         let talkBarIconColor = speechInput.permissionDenied
             ? Color(red: 0.45, green: 0.47, blue: 0.52)
-            : (speechInput.isRecording ? Color.white : Color(red: 0.29, green: 0.43, blue: 0.95))
+            : (speechInput.isRecording ? Color.white : Color(red: 0.92, green: 0.93, blue: 0.96))
 
         ZStack(alignment: .bottom) {
             Color(red: 0.90, green: 0.90, blue: 0.93).ignoresSafeArea()
 
             GeometryReader { geo in
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("PhillyHelpJawn")
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundStyle(Color(red: 0.04, green: 0.10, blue: 0.20))
-                        .padding(.horizontal, 24)
-                        .padding(.top, 24)
+                    (
+                        Text("Philly")
+                            .foregroundStyle(Color.red)
+                        + Text("Help")
+                            .foregroundStyle(Color(red: 0.17, green: 0.78, blue: 0.39))
+                        + Text("Jawn")
+                            .foregroundStyle(Color(red: 0.96, green: 0.72, blue: 0.31))
+                    )
+                    .font(.system(size: 36, weight: .bold))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 24)
 
                     // Pin this block around the upper third of the screen.
                     Spacer()
-                        .frame(height: geo.size.height * 0.18)
+                        .frame(height: geo.size.height * 0.13)
 
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(displayedRequestText.isEmpty ? "—" : displayedRequestText)
-                            .font(.system(size: 52, weight: .bold))
+                        Text(liveRequestText.isEmpty ? "—" : liveRequestText)
+                            .font(.system(size: requestFontSize, weight: .bold))
                             .foregroundStyle(Color(red: 0.04, green: 0.10, blue: 0.20))
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .lineLimit(3)
-                            .minimumScaleFactor(0.7)
+                            .lineLimit(6)
+                            .minimumScaleFactor(0.55)
+                            .allowsTightening(true)
+                            .fixedSize(horizontal: false, vertical: false)
                     }
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: listeningActive ? 240 : 140,
+                        alignment: .topLeading
+                    )
                     .padding(20)
                     .background(Color.white.opacity(0.32))
                     .clipShape(RoundedRectangle(cornerRadius: 24))
                     .padding(.horizontal, 24)
+                    .animation(.easeInOut(duration: 0.2), value: listeningActive)
 
                     if let responseError = responseViewModel.errorMessage {
                         Text(responseError)
@@ -609,9 +633,9 @@ private struct MockResponseView: View {
                                     } label: {
                                         Image(systemName: "figure.walk")
                                             .font(.system(size: 40, weight: .regular))
-                                            .foregroundStyle(Color(red: 0.16, green: 0.77, blue: 0.39))
+                                            .foregroundStyle(.white)
                                             .frame(maxWidth: .infinity, minHeight: 120)
-                                            .background(Color(red: 0.78, green: 0.86, blue: 0.83))
+                                            .background(Color(red: 0.17, green: 0.78, blue: 0.39))
                                             .clipShape(RoundedRectangle(cornerRadius: 28))
                                     }
 
@@ -620,9 +644,9 @@ private struct MockResponseView: View {
                                             Link(destination: phoneURL) {
                                                 Image(systemName: "phone.fill")
                                                     .font(.system(size: 40, weight: .regular))
-                                                    .foregroundStyle(Color(red: 0.16, green: 0.77, blue: 0.39))
+                                                    .foregroundStyle(.white)
                                                     .frame(maxWidth: .infinity, minHeight: 120)
-                                                    .background(Color(red: 0.78, green: 0.86, blue: 0.83))
+                                                    .background(Color(red: 0.96, green: 0.72, blue: 0.31))
                                                     .clipShape(RoundedRectangle(cornerRadius: 28))
                                             }
                                         } else {
@@ -713,7 +737,7 @@ private struct MockResponseView: View {
         case "suicide", "emergency", "child_safety":
             return .red
         default:
-            return Color(red: 0.16, green: 0.77, blue: 0.39)
+            return Color(red: 0.96, green: 0.72, blue: 0.31)
         }
     }
 }
