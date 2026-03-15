@@ -272,7 +272,7 @@ final class SpeechOutputManager {
 
         let utterance = AVSpeechUtterance(string: message)
         utterance.voice = AVSpeechSynthesisVoice(identifier: preferredVoiceIdentifier) ?? AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.85
         utterance.volume = 1.0
         synthesizer.speak(utterance)
     }
