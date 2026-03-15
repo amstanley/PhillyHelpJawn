@@ -41,7 +41,8 @@ This document defines the response payload that the backend returns for assist q
       "phone": "215-555-0100",
       "description": null
     }
-  ]
+  ],
+  "crisis": null
 }
 ```
 
@@ -55,6 +56,7 @@ This document defines the response payload that the backend returns for assist q
 | `timestamp`  | string | Yes      | UTC ISO-8601, when the response was generated                |
 | `message`    | string | Yes      | Plain-language text for text-to-speech. Short, simple sentences at ~4th-grade reading level. |
 | `resources`  | array  | Yes      | Matching resources. May be empty if none found.              |
+| `crisis`     | string | Yes      | Crisis type if detected: `"suicide"`, `"emergency"`, or `"child_safety"`. `null` if no crisis. |
 
 ### Resource Object
 
@@ -106,6 +108,22 @@ When the backend encounters an internal error (e.g., LLM service unavailable), i
 
 The frontend should always read `message` aloud regardless of whether `resources` is empty.
 
+## Crisis Detection
+
+When the backend detects a user in crisis, `crisis` will be set to one of:
+
+| Value          | Meaning                                  | Recommended UI                                    |
+|----------------|------------------------------------------|---------------------------------------------------|
+| `"suicide"`    | Self-harm or suicidal ideation detected  | Prominent 988 call/text button                    |
+| `"emergency"`  | Immediate physical danger                | Prominent 911 call button                         |
+| `"child_safety"` | Child in danger                       | 911 button + Childline (1-800-932-0313) button    |
+| `null`         | No crisis detected                       | Normal resource display                           |
+
+The `message` will already contain crisis-appropriate language. The frontend should:
+1. Read `message` aloud as usual
+2. Display a prominent emergency action button based on the `crisis` type
+3. Resource cards may still be present if relevant (e.g., shelters for someone in danger)
+
 ## Frontend Usage Notes
 
 - **Text-to-speech:** Read `message` aloud. It is written in simple, clear language.
@@ -113,6 +131,7 @@ The frontend should always read `message` aloud regardless of whether `resources
 - **Call button:** Show a call button if `phone` is not null.
 - **Map/directions:** Use `lat`/`lng` to open Apple Maps or show distance. `distanceKm` can be displayed as "X km away".
 - **Empty state:** If `resources` is empty, still read `message` aloud — it will explain the situation.
+- **Crisis state:** If `crisis` is not null, show the appropriate emergency button prominently above all other content.
 
 ## Ownership Note
 

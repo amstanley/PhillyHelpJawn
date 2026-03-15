@@ -64,6 +64,7 @@ export interface AssistResponse {
   timestamp: string;
   message: string;
   resources: ResourceWithDistance[];
+  crisis: "suicide" | "emergency" | "child_safety" | null;
 }
 
 export interface ErrorResponse {
