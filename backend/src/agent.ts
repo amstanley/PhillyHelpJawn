@@ -26,9 +26,12 @@ CRISIS DETECTION — HIGHEST PRIORITY:
 
 SCOPE — THIS IS NOT A GENERAL-PURPOSE ASSISTANT:
 - You can ONLY help people find social services in Philadelphia.
-- You MUST call search_resources or report_crisis for EVERY user message. Never respond without using a tool first.
-- If someone asks you to do anything unrelated to finding social services (homework, recipes, conversation, trivia, coding, etc.), respond ONLY with: "I can help you find food, shelter, and other services in Philadelphia. What do you need help with?"
-- Do not engage with off-topic requests even if the user is persistent. Repeat the message above.
+- You MUST call a tool for EVERY user message: search_resources, report_crisis, or redirect. Never respond without using a tool first.
+- Use search_resources when the user has a need you can search for.
+- Use report_crisis when you detect a crisis (see above).
+- Use redirect for everything else: greetings, thank-yous, off-topic requests, unclear messages, questions about services not in the database.
+- When using redirect for off-topic requests, respond ONLY with: "I can help you find food, shelter, and other services in Philadelphia. What do you need help with?"
+- When using redirect for greetings or gratitude, be warm and brief, then remind them what you can help with.
 - Do not role-play, tell stories, write content, or answer general knowledge questions.
 
 BOUNDARIES:
@@ -60,9 +63,38 @@ const CRISIS_TOOL: Anthropic.Tool = {
   },
 };
 
-const TOOLS = [SEARCH_TOOL, CRISIS_TOOL];
+const REDIRECT_TOOL: Anthropic.Tool = {
+  name: "redirect",
+  description:
+    "Call this when the user's message is not something you can search for and is not a crisis. Examples: greetings, thank-yous, requests you can't fulfill, questions about services not in the database, off-topic requests.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      reason: {
+        type: "string",
+        enum: [
+          "greeting",
+          "out_of_scope",
+          "unclear",
+          "gratitude",
+          "meta_question",
+        ],
+        description: "Why this can't be handled with a resource search.",
+      },
+    },
+    required: ["reason"],
+  },
+};
+
+const TOOLS = [SEARCH_TOOL, CRISIS_TOOL, REDIRECT_TOOL];
 
 export type CrisisType = "suicide" | "emergency" | "child_safety";
+export type RedirectReason =
+  | "greeting"
+  | "out_of_scope"
+  | "unclear"
+  | "gratitude"
+  | "meta_question";
 
 export interface AgentResult {
   message: string;
@@ -73,6 +105,7 @@ export interface AgentResult {
 export async function handleQuery(queryText: string): Promise<AgentResult> {
   let collectedResources: Resource[] = [];
   let detectedCrisis: CrisisType | null = null;
+  let redirectReason: RedirectReason | null = null;
 
   const messages: Anthropic.MessageParam[] = [
     { role: "user", content: queryText },
@@ -104,6 +137,10 @@ export async function handleQuery(queryText: string): Promise<AgentResult> {
       const input = toolBlock.input as { type: CrisisType };
       detectedCrisis = input.type;
       toolResult = JSON.stringify({ acknowledged: true, type: input.type });
+    } else if (toolBlock.name === "redirect") {
+      const input = toolBlock.input as { reason: RedirectReason };
+      redirectReason = input.reason;
+      toolResult = JSON.stringify({ acknowledged: true });
     } else {
       toolResult = JSON.stringify({ error: "Unknown tool" });
     }
@@ -135,7 +172,10 @@ export async function handleQuery(queryText: string): Promise<AgentResult> {
 
   // Server-side guardrail: if Claude never called any tool, it went off-script.
   // This catches prompt injection and off-topic requests that bypass the system prompt.
-  const usedAnyTool = collectedResources.length > 0 || detectedCrisis !== null;
+  const usedAnyTool =
+    collectedResources.length > 0 ||
+    detectedCrisis !== null ||
+    redirectReason !== null;
   if (!usedAnyTool) {
     return {
       message:
