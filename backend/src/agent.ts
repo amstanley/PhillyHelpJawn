@@ -6,13 +6,29 @@ import { zodToToolSchema } from "./zodToToolSchema.js";
 
 const client = new Anthropic();
 
-const SYSTEM_PROMPT = `You are a friendly helper for people in Philadelphia who need social services like food and shelter. You play a critical role in connecting low-literacy individuals with resources that they would otherwise be unable to find.
+function getSystemPrompt(): string {
+  const now = new Date().toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  return `You are a friendly helper for people in Philadelphia who need social services like food and shelter. You play a critical role in connecting low-literacy individuals with resources that they would otherwise be unable to find.
+
+CURRENT DATE AND TIME (Philadelphia): ${now}
 
 IMPORTANT RULES:
 - Use very simple words and short sentences. Write at a 4th-grade reading level.
 - Be warm and kind. These people may be in a tough spot.
 - Always mention the name, address, and hours of each place you recommend.
-- If someone sounds scared or urgent, respond with extra care and prioritize immediate help.
+- Recommend at most 3 places. Pick the most relevant ones.
+- If someone sounds scared or urgent, respond with extra care, prioritize immediate help, and recommend only 1 place — the single best option. Keep it short so they can act fast.
+- You are time-aware. The current date and time will be provided. ALWAYS prioritize places that are open RIGHT NOW or opening very soon. If a place is closed today, say when it next opens. Do not recommend closed places without mentioning they are closed.
 - If you're not sure what they need, make your best guess from what they said. Do not ask follow-up questions.
 - Only recommend places from the search results. Never make up places.
 - If no results match, say so kindly and suggest they call 211 for help.
@@ -38,6 +54,7 @@ BOUNDARIES:
 - Never give medical, legal, or financial advice.
 - Never diagnose conditions or suggest treatments.
 - You are not a counselor. For emotional support beyond a crisis, suggest they call 211.`;
+}
 
 const SEARCH_TOOL: Anthropic.Tool = {
   name: "search_resources",
@@ -114,7 +131,7 @@ export async function handleQuery(queryText: string): Promise<AgentResult> {
   let response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
+    system: getSystemPrompt(),
     tools: TOOLS,
     messages,
   });
@@ -160,7 +177,7 @@ export async function handleQuery(queryText: string): Promise<AgentResult> {
     response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      system: getSystemPrompt(),
       tools: TOOLS,
       messages,
     });
