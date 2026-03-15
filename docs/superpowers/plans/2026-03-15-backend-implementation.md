@@ -14,19 +14,21 @@
 
 | File | Responsibility |
 |------|---------------|
-| `package.json` | Dependencies and scripts |
-| `tsconfig.json` | TypeScript config |
-| `.env` | API keys (ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY) |
-| `.gitignore` | Ignore node_modules, .env, dist |
-| `src/types.ts` | Request, response, and resource types |
-| `src/db.ts` | Supabase client, `searchResources()` query |
-| `src/agent.ts` | Claude system prompt, tool definition, `handleQuery()` |
-| `src/validation.ts` | `validateRequest()` — pure function, no side effects |
-| `src/index.ts` | Hono server, `/v1/assist/query` endpoint |
-| `src/seed.ts` | CSV → geocode → insert into Supabase |
-| `src/geo.ts` | `computeDistance()` haversine helper |
-| `data/resources.csv` | Sample resource data for seeding |
-| `tests/validation.test.ts` | Request validation tests |
+| `backend/package.json` | Dependencies and scripts |
+| `backend/tsconfig.json` | TypeScript config |
+| `backend/.env` | API keys (ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY) |
+| `.gitignore` | Ignore node_modules, .env, dist (root level) |
+| `backend/src/types.ts` | Request, response, and resource types |
+| `backend/src/db.ts` | Supabase client, `searchResources()` query |
+| `backend/src/agent.ts` | Claude system prompt, tool definition, `handleQuery()` |
+| `backend/src/validation.ts` | `validateRequest()` — pure function, no side effects |
+| `backend/src/index.ts` | Hono server, `/v1/assist/query` endpoint |
+| `backend/src/seed.ts` | CSV → geocode → insert into Supabase |
+| `backend/src/geo.ts` | `computeDistance()` haversine helper |
+| `backend/data/resources.csv` | Sample resource data for seeding |
+| `backend/tests/validation.test.ts` | Request validation tests |
+
+All commands below should be run from the `backend/` directory.
 
 ---
 
