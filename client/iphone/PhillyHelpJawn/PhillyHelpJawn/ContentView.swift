@@ -2,13 +2,18 @@ import SwiftUI
 import Speech
 import AVFoundation
 import Combine
+import MapKit
+import UIKit
+import AudioToolbox
 
 struct ContentView: View {
     @StateObject private var speechInput = SpeechInputManager()
-    @State private var isShowingPayload = false
-    @State private var payloadJSONString = ""
+    @StateObject private var responseViewModel = MockAssistResponseViewModel()
+    @State private var isShowingMockResponse = false
 
     var body: some View {
+        let listeningActive = speechInput.isRecording || speechInput.isPreparing
+
         VStack(spacing: 24) {
             Text("PhillyHelpJawn MVP")
                 .font(.title2)
@@ -36,12 +41,19 @@ struct ContentView: View {
             Button {
                 // Press-and-hold behavior is handled by the gesture.
             } label: {
-                Label(speechInput.isRecording ? "Listening..." : "Push To Talk", systemImage: speechInput.isRecording ? "waveform" : "mic.fill")
+                Label(listeningActive ? "Listening..." : "Push To Talk", systemImage: listeningActive ? "waveform" : "mic.fill")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding()
             }
             .buttonStyle(.borderedProminent)
+            .tint(listeningActive ? .green : .blue)
+            .overlay {
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(listeningActive ? Color.green : Color.clear, lineWidth: 3)
+                    .scaleEffect(listeningActive ? 1.02 : 1.0)
+                    .animation(.easeInOut(duration: 0.35), value: listeningActive)
+            }
             .padding(.horizontal)
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
@@ -52,82 +64,246 @@ struct ContentView: View {
                     }
                     .onEnded { _ in
                         speechInput.stopRecording()
-                        payloadJSONString = payloadJSON(from: speechInput.transcript)
-                        isShowingPayload = true
+                        Task {
+                            await responseViewModel.loadMockResponse()
+                            if responseViewModel.response != nil {
+                                isShowingMockResponse = true
+                            }
+                        }
                     }
             )
+
+            if let responseError = responseViewModel.errorMessage {
+                Text(responseError)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal)
+            }
 
             Spacer()
         }
         .padding(.top, 40)
-        .sheet(isPresented: $isShowingPayload) {
-            PayloadPreviewView(payloadJSONString: payloadJSONString)
+        .sheet(isPresented: $isShowingMockResponse) {
+            if let response = responseViewModel.response {
+                MockResponseView(response: response)
+            }
+        }
+        .onAppear {
+            speechInput.preflightPermissions()
         }
     }
+}
 
-    private func payloadJSON(from queryText: String) -> String {
-        let payload: [String: Any] = [
-            "requestId": UUID().uuidString,
-            "timestamp": ISO8601DateFormatter().string(from: Date()),
-            "inputModality": "voice_ptt",
-            "queryText": queryText,
-            "language": "en-US",
-            "persona": "primary_low_literacy",
-            "client": [
-                "platform": "ios",
-                "appVersion": "0.1.0",
-                "buildNumber": "1"
-            ]
-        ]
+@MainActor
+final class MockAssistResponseViewModel: ObservableObject {
+    @Published var response: AssistResponse?
+    @Published var isLoading = false
+    @Published var errorMessage: String?
 
-        guard
-            JSONSerialization.isValidJSONObject(payload),
-            let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]),
-            let jsonString = String(data: data, encoding: .utf8)
-        else {
-            return "{ \"error\": \"Unable to build payload\" }"
+    private let mockClient = MockAssistAPIClient()
+
+    func loadMockResponse() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            response = try mockClient.fetchMockResponse()
+        } catch {
+            errorMessage = "Unable to load mock response."
+        }
+    }
+}
+
+struct AssistResponse: Decodable {
+    let requestId: String
+    let timestamp: String
+    let message: String
+    let resources: [AssistResource]
+}
+
+struct AssistResource: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let category: String
+    let eligibility: String?
+    let address: String
+    let lat: Double
+    let lng: Double
+    let distanceKm: Double?
+    let hours: String?
+    let phone: String?
+    let description: String?
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+}
+
+struct MockAssistAPIClient {
+    func fetchMockResponse() throws -> AssistResponse {
+        let data = Data(Self.sampleResponseJSON.utf8)
+        return try JSONDecoder().decode(AssistResponse.self, from: data)
+    }
+
+    private static let sampleResponseJSON = """
+    {
+      "requestId": "9e5d4f53-0db8-4f77-b4e8-e38f73b6b2cc",
+      "timestamp": "2026-03-15T16:42:12Z",
+      "message": "Here are some places where you can get food tonight. Mount Tabor CEED Corporation is at 961 North 7th Street. They have a food cupboard open on Mondays. Breaking Bread on Broad is at 615 North Broad Street.",
+      "resources": [
+        {
+          "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+          "name": "Mount Tabor CEED Corporation",
+          "category": "Food",
+          "eligibility": "Food cupboard",
+          "address": "961-971 N 7th St",
+          "lat": 39.9678,
+          "lng": -75.1485,
+          "distanceKm": 1.2,
+          "hours": "Monday",
+          "phone": null,
+          "description": null
+        },
+        {
+          "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+          "name": "Breaking Bread on Broad",
+          "category": "Food",
+          "eligibility": null,
+          "address": "615 N Broad St",
+          "lat": 39.9631,
+          "lng": -75.1596,
+          "distanceKm": 0.8,
+          "hours": null,
+          "phone": "215-555-0100",
+          "description": null
+        }
+      ]
+    }
+    """
+}
+
+final class SpeechOutputManager {
+    static let shared = SpeechOutputManager()
+    private let synthesizer = AVSpeechSynthesizer()
+    private let preferredVoiceIdentifier = "com.apple.voice.compact.en-US.Samantha"
+
+    private init() {}
+
+    func speak(_ message: String) {
+        guard !message.isEmpty else { return }
+
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            // Switch from mic capture mode to spoken playback so TTS is audible.
+            try audioSession.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            // Keep going even if session configuration fails.
         }
 
-        return jsonString
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+
+        let utterance = AVSpeechUtterance(string: message)
+        utterance.voice = AVSpeechSynthesisVoice(identifier: preferredVoiceIdentifier) ?? AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95
+        utterance.volume = 1.0
+        synthesizer.speak(utterance)
+    }
+
+    func stop() {
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+    }
+}
+
+final class CueFeedbackManager {
+    private let startSoundID: SystemSoundID = 1113
+    private let stopSoundID: SystemSoundID = 1114
+
+    func listeningStarted() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        AudioServicesPlaySystemSound(startSoundID)
+    }
+
+    func listeningStopped() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        AudioServicesPlaySystemSound(stopSoundID)
     }
 }
 
 @MainActor
 final class SpeechInputManager: NSObject, ObservableObject {
+    private enum PermissionState {
+        case unknown
+        case granted
+        case denied
+    }
+
     @Published var transcript = ""
     @Published var isRecording = false
+    @Published var isPreparing = false
     @Published var errorMessage: String?
 
     private let audioEngine = AVAudioEngine()
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private let cueFeedback = CueFeedbackManager()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var isStoppingManually = false
+    private var permissionState: PermissionState = .unknown
 
     func startRecording() {
         errorMessage = nil
+        isPreparing = true
+
+        if permissionState == .granted {
+            beginRecognition()
+            return
+        }
 
         requestPermissionsIfNeeded { [weak self] granted in
             guard let self else { return }
             if !granted {
                 self.errorMessage = "Microphone and Speech permissions are required."
+                self.isPreparing = false
                 return
             }
+            self.warmUpAudioSession()
             self.beginRecognition()
         }
     }
 
+    func preflightPermissions() {
+        guard permissionState == .unknown else { return }
+
+        requestPermissionsIfNeeded { [weak self] granted in
+            guard let self else { return }
+            if granted {
+                self.warmUpAudioSession()
+            }
+        }
+    }
+
     func stopRecording() {
-        guard isRecording else { return }
+        guard isRecording else {
+            isPreparing = false
+            return
+        }
         isStoppingManually = true
 
-        audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
+        audioEngine.stop()
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
         recognitionTask = nil
         recognitionRequest = nil
         isRecording = false
+        isPreparing = false
+        cueFeedback.listeningStopped()
 
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -137,13 +313,31 @@ final class SpeechInputManager: NSObject, ObservableObject {
     }
 
     private func requestPermissionsIfNeeded(completion: @escaping (Bool) -> Void) {
+        if permissionState != .unknown {
+            completion(permissionState == .granted)
+            return
+        }
+
         SFSpeechRecognizer.requestAuthorization { authStatus in
             let speechGranted = authStatus == .authorized
             AVAudioApplication.requestRecordPermission { micGranted in
                 DispatchQueue.main.async {
-                    completion(speechGranted && micGranted)
+                    let granted = speechGranted && micGranted
+                    self.permissionState = granted ? .granted : .denied
+                    completion(granted)
                 }
             }
+        }
+    }
+
+    private func warmUpAudioSession() {
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            // Best effort only; warm-up failures should not block recording.
         }
     }
 
@@ -152,6 +346,7 @@ final class SpeechInputManager: NSObject, ObservableObject {
         isStoppingManually = false
         guard let speechRecognizer, speechRecognizer.isAvailable else {
             errorMessage = "Speech recognition is currently unavailable."
+            isPreparing = false
             return
         }
 
@@ -159,8 +354,11 @@ final class SpeechInputManager: NSObject, ObservableObject {
             try configureAudioSession()
             try startAudioEngine()
             isRecording = true
+            isPreparing = false
+            cueFeedback.listeningStarted()
         } catch {
             errorMessage = "Unable to start speech recognition."
+            isPreparing = false
             cleanupAfterFailure()
         }
     }
@@ -184,7 +382,10 @@ final class SpeechInputManager: NSObject, ObservableObject {
 
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
-            self?.recognitionRequest?.append(buffer)
+            let byteSize = buffer.audioBufferList.pointee.mBuffers.mDataByteSize
+            if byteSize > 0 {
+                self?.recognitionRequest?.append(buffer)
+            }
         }
 
         audioEngine.prepare()
@@ -214,38 +415,127 @@ final class SpeechInputManager: NSObject, ObservableObject {
         recognitionRequest = nil
         recognitionTask = nil
         isRecording = false
+        isPreparing = false
     }
 }
 
-private struct PayloadPreviewView: View {
+private struct MockResponseView: View {
     @Environment(\.dismiss) private var dismiss
-    let payloadJSONString: String
+    @Environment(\.openURL) private var openURL
+    let response: AssistResponse
+    @State private var didSpeakMessage = false
+
+    private var mapRegion: MKCoordinateRegion {
+        if let first = response.resources.first {
+            return MKCoordinateRegion(
+                center: first.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06)
+            )
+        }
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 39.9526, longitude: -75.1652),
+            span: MKCoordinateSpan(latitudeDelta: 0.12, longitudeDelta: 0.12)
+        )
+    }
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("API Payload Preview")
-                    .font(.headline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(response.message)
+                        .font(.body)
 
-                ScrollView {
-                    Text(payloadJSONString)
-                        .font(.system(.footnote, design: .monospaced))
+                    Map(initialPosition: .region(mapRegion)) {
+                        ForEach(response.resources) { resource in
+                            Marker(resource.name, coordinate: resource.coordinate)
+                        }
+                    }
+                    .frame(height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .onTapGesture {
+                        if let first = response.resources.first {
+                            openURL(mapsURL(for: first))
+                        }
+                    }
+
+                    ForEach(response.resources) { resource in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(resource.name)
+                                .font(.headline)
+                            Text(resource.address)
+                                .font(.subheadline)
+                            if let hours = resource.hours {
+                                Text("Hours: \(hours)")
+                                    .font(.footnote)
+                            }
+                            HStack(spacing: 12) {
+                                Button {
+                                    openURL(mapsURL(for: resource))
+                                } label: {
+                                    Label("Route", systemImage: "map")
+                                        .font(.footnote)
+                                }
+                                .buttonStyle(.bordered)
+
+                                if let phone = resource.phone {
+                                    if let phoneURL = callURL(from: phone) {
+                                        Link(destination: phoneURL) {
+                                            Label("Call", systemImage: "phone.fill")
+                                                .font(.footnote)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                    } else {
+                                        Text("Phone: \(phone)")
+                                            .font(.footnote)
+                                    }
+                                }
+                            }
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
                         .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
                 }
-
-                Button("Dismiss") {
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .frame(maxWidth: .infinity)
+                .padding()
             }
-            .padding()
-            .navigationTitle("Payload")
+            .navigationTitle("Mock Response")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .onAppear {
+                if !didSpeakMessage {
+                    SpeechOutputManager.shared.speak(response.message)
+                    didSpeakMessage = true
+                }
+            }
+            .onDisappear {
+                SpeechOutputManager.shared.stop()
+            }
         }
+    }
+
+    private func mapsURL(for resource: AssistResource) -> URL {
+        // daddr opens Apple Maps with routing toward the destination.
+        // Use address first so route matches displayed card content, then fallback to coordinates.
+        let trimmedAddress = resource.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let destination: String
+        if trimmedAddress.isEmpty {
+            destination = "\(resource.lat),\(resource.lng)"
+        } else {
+            destination = trimmedAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "\(resource.lat),\(resource.lng)"
+        }
+        let urlString = "http://maps.apple.com/?daddr=\(destination)&dirflg=w"
+        return URL(string: urlString) ?? URL(string: "http://maps.apple.com/")!
+    }
+
+    private func callURL(from phone: String) -> URL? {
+        let digits = phone.filter { $0.isNumber || $0 == "+" }
+        guard !digits.isEmpty else { return nil }
+        return URL(string: "tel://\(digits)")
     }
 }
 
