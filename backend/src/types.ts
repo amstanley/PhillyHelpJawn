@@ -1,42 +1,63 @@
-export interface Resource {
-  id: string;
-  name: string;
-  category: string;
-  eligibility: string | null;
-  address: string;
-  lat: number;
-  lng: number;
-  hours: string | null;
-  phone: string | null;
-  description: string | null;
-}
+import { z } from "zod";
 
-export interface ResourceWithDistance extends Resource {
-  distanceKm: number | null;
-}
+// --- Resource (DB row) ---
 
-export interface AssistRequest {
-  requestId: string;
-  timestamp: string;
-  inputModality: string;
-  queryText: string;
-  language: string;
-  persona?: string;
-  location?: {
-    lat: number;
-    lng: number;
-    accuracyMeters?: number;
-  };
-  client: {
-    platform: string;
-    appVersion?: string;
-    buildNumber?: string;
-  };
-  session?: {
-    sessionId: string;
-    turnIndex: number;
-  };
-}
+export const ResourceSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  category: z.string(),
+  eligibility: z.string().nullable(),
+  address: z.string(),
+  lat: z.number(),
+  lng: z.number(),
+  hours: z.string().nullable(),
+  phone: z.string().nullable(),
+  description: z.string().nullable(),
+});
+
+export type Resource = z.infer<typeof ResourceSchema>;
+
+export const ResourceWithDistanceSchema = ResourceSchema.extend({
+  distanceKm: z.number().nullable(),
+});
+
+export type ResourceWithDistance = z.infer<typeof ResourceWithDistanceSchema>;
+
+// --- Request validation ---
+
+export const AssistRequestSchema = z.object({
+  requestId: z.string().min(1, "requestId is required"),
+  timestamp: z.string(),
+  inputModality: z.string(),
+  queryText: z
+    .string()
+    .min(1, "queryText is required")
+    .max(500, "queryText must be 500 characters or fewer"),
+  language: z.literal("en-US", { error: "Only en-US is supported" }),
+  persona: z.string().optional(),
+  location: z
+    .object({
+      lat: z.number(),
+      lng: z.number(),
+      accuracyMeters: z.number().optional(),
+    })
+    .optional(),
+  client: z.object({
+    platform: z.string(),
+    appVersion: z.string().optional(),
+    buildNumber: z.string().optional(),
+  }),
+  session: z
+    .object({
+      sessionId: z.string(),
+      turnIndex: z.number(),
+    })
+    .optional(),
+});
+
+export type AssistRequest = z.infer<typeof AssistRequestSchema>;
+
+// --- Response types (not validated, we produce these) ---
 
 export interface AssistResponse {
   requestId: string;
@@ -50,3 +71,22 @@ export interface ErrorResponse {
   timestamp: string;
   error: string;
 }
+
+// --- Tool input schema ---
+
+export const SearchResourcesInputSchema = z.object({
+  category: z
+    .string()
+    .describe(
+      'The type of resource: "Shelter", "Food", etc. Leave empty to search all categories.'
+    )
+    .optional(),
+  eligibility: z
+    .string()
+    .describe(
+      'Filter by who can use it, e.g. "family", "youth", "male", "female". Leave empty for no filter.'
+    )
+    .optional(),
+});
+
+export type SearchResourcesInput = z.infer<typeof SearchResourcesInputSchema>;
