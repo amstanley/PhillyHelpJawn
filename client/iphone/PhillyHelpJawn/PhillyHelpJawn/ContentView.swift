@@ -10,51 +10,97 @@ struct ContentView: View {
     @StateObject private var speechInput = SpeechInputManager()
     @StateObject private var responseViewModel = MockAssistResponseViewModel()
     @State private var isShowingMockResponse = false
+    @State private var lastSubmittedRequestText = ""
+    @State private var displayedRequestText = ""
 
     var body: some View {
         let listeningActive = speechInput.isRecording || speechInput.isPreparing
+        let liveRequestText = listeningActive
+            ? (speechInput.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? displayedRequestText : speechInput.transcript)
+            : displayedRequestText
+        let requestFontSize: CGFloat = {
+            let count = liveRequestText.count
+            if count > 160 { return 34 }
+            if count > 110 { return 40 }
+            if count > 70 { return 46 }
+            return 52
+        }()
+        let talkBarBackground = speechInput.permissionDenied
+            ? Color(red: 0.78, green: 0.79, blue: 0.86)
+            : (speechInput.isRecording
+                ? Color(red: 0.94, green: 0.44, blue: 0.45)
+                : (speechInput.isPreparing
+                    ? Color(red: 0.17, green: 0.78, blue: 0.39)
+                    : Color(red: 0.30, green: 0.43, blue: 0.90)))
+        let talkBarIconColor = speechInput.permissionDenied
+            ? Color(red: 0.45, green: 0.47, blue: 0.52)
+            : (speechInput.isRecording ? Color.white : Color(red: 0.92, green: 0.93, blue: 0.96))
 
-        VStack(spacing: 24) {
-            Text("PhillyHelpJawn MVP")
-                .font(.title2)
-                .fontWeight(.semibold)
+        ZStack(alignment: .bottom) {
+            Color(red: 0.90, green: 0.90, blue: 0.93).ignoresSafeArea()
 
-            Text("Press and hold to speak. Release to preview the API payload generated from recognized speech.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
+            GeometryReader { geo in
+                VStack(alignment: .leading, spacing: 16) {
+                    (
+                        Text("Philly")
+                            .foregroundStyle(Color.red)
+                        + Text("Help")
+                            .foregroundStyle(Color(red: 0.17, green: 0.78, blue: 0.39))
+                        + Text("Jawn")
+                            .foregroundStyle(Color(red: 0.96, green: 0.72, blue: 0.31))
+                    )
+                    .font(.system(size: 36, weight: .bold))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 24)
 
-            GroupBox {
-                Text(speechInput.transcript.isEmpty ? "Transcript appears here." : speechInput.transcript)
-                    .font(.body)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal)
+                    // Pin this block around the upper third of the screen.
+                    Spacer()
+                        .frame(height: geo.size.height * 0.13)
 
-            if let errorMessage = speechInput.errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .padding(.horizontal)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(liveRequestText.isEmpty ? "—" : liveRequestText)
+                            .font(.system(size: requestFontSize, weight: .bold))
+                            .foregroundStyle(Color(red: 0.04, green: 0.10, blue: 0.20))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .lineLimit(6)
+                            .minimumScaleFactor(0.55)
+                            .allowsTightening(true)
+                            .fixedSize(horizontal: false, vertical: false)
+                    }
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: listeningActive ? 240 : 140,
+                        alignment: .topLeading
+                    )
+                    .padding(20)
+                    .background(Color.white.opacity(0.32))
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                    .padding(.horizontal, 24)
+                    .animation(.easeInOut(duration: 0.2), value: listeningActive)
+
+                    if let responseError = responseViewModel.errorMessage {
+                        Text(responseError)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 24)
+                    }
+
+                    Spacer(minLength: max(120, geo.size.height * 0.20))
+                }
             }
 
             Button {
                 // Press-and-hold behavior is handled by the gesture.
             } label: {
-                Label(listeningActive ? "Listening..." : "Push To Talk", systemImage: listeningActive ? "waveform" : "mic.fill")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 64, weight: .regular))
+                    .foregroundStyle(talkBarIconColor)
+                    .frame(maxWidth: .infinity, minHeight: 124)
+                    .background(talkBarBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 34))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(listeningActive ? .green : .blue)
-            .overlay {
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(listeningActive ? Color.green : Color.clear, lineWidth: 3)
-                    .scaleEffect(listeningActive ? 1.02 : 1.0)
-                    .animation(.easeInOut(duration: 0.35), value: listeningActive)
-            }
-            .padding(.horizontal)
+            .disabled(speechInput.permissionDenied)
+            .padding(.bottom, 0)
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
@@ -64,28 +110,25 @@ struct ContentView: View {
                     }
                     .onEnded { _ in
                         speechInput.stopRecording()
+                        let capturedRequest = speechInput.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !capturedRequest.isEmpty {
+                            lastSubmittedRequestText = capturedRequest
+                            displayedRequestText = capturedRequest
+                        } else if !displayedRequestText.isEmpty {
+                            lastSubmittedRequestText = displayedRequestText
+                        }
                         Task {
-                            await responseViewModel.loadMockResponse()
+                            await responseViewModel.loadResponse(queryText: lastSubmittedRequestText)
                             if responseViewModel.response != nil {
                                 isShowingMockResponse = true
                             }
                         }
                     }
             )
-
-            if let responseError = responseViewModel.errorMessage {
-                Text(responseError)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .padding(.horizontal)
-            }
-
-            Spacer()
         }
-        .padding(.top, 40)
         .sheet(isPresented: $isShowingMockResponse) {
             if let response = responseViewModel.response {
-                MockResponseView(response: response)
+                MockResponseView(response: response, requestText: lastSubmittedRequestText)
             }
         }
         .onAppear {
@@ -100,17 +143,28 @@ final class MockAssistResponseViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
+    private let liveClient = AssistAPIClient(baseURL: URL(string: "https://phillyhelpjawn-production.up.railway.app")!)
     private let mockClient = MockAssistAPIClient()
+    private let useMockFallback = true
 
-    func loadMockResponse() async {
+    func loadResponse(queryText: String) async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
-            response = try mockClient.fetchMockResponse()
+            response = try await liveClient.fetchResponse(queryText: queryText)
         } catch {
-            errorMessage = "Unable to load mock response."
+            if useMockFallback {
+                do {
+                    response = try mockClient.fetchMockResponse()
+                    errorMessage = "Live API unavailable. Showing mock response."
+                } catch {
+                    errorMessage = "Unable to load response."
+                }
+            } else {
+                errorMessage = "Unable to load response."
+            }
         }
     }
 }
@@ -120,6 +174,8 @@ struct AssistResponse: Decodable {
     let timestamp: String
     let message: String
     let resources: [AssistResource]
+    let crisis: String?
+    let actionPhone: String?
 }
 
 struct AssistResource: Decodable, Identifiable {
@@ -178,9 +234,64 @@ struct MockAssistAPIClient {
           "phone": "215-555-0100",
           "description": null
         }
-      ]
+      ],
+      "crisis": null,
+      "actionPhone": null
     }
     """
+}
+
+struct AssistAPIClient {
+    let baseURL: URL
+
+    func fetchResponse(queryText: String) async throws -> AssistResponse {
+        let trimmedQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = trimmedQuery.isEmpty ? "I need food help" : trimmedQuery
+
+        let requestBody = AssistQueryRequest(
+            requestId: UUID().uuidString,
+            timestamp: ISO8601DateFormatter().string(from: Date()),
+            inputModality: "voice_ptt",
+            queryText: query,
+            language: "en-US",
+            persona: "primary_low_literacy",
+            client: .init(platform: "ios", appVersion: "0.1.0", buildNumber: "1")
+        )
+
+        guard let endpointURL = URL(string: "/v1/assist/query", relativeTo: baseURL)?.absoluteURL else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: endpointURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard (200 ... 299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        return try JSONDecoder().decode(AssistResponse.self, from: data)
+    }
+}
+
+struct AssistQueryRequest: Encodable {
+    struct Client: Encodable {
+        let platform: String
+        let appVersion: String
+        let buildNumber: String
+    }
+
+    let requestId: String
+    let timestamp: String
+    let inputModality: String
+    let queryText: String
+    let language: String
+    let persona: String
+    let client: Client
 }
 
 final class SpeechOutputManager {
@@ -208,7 +319,7 @@ final class SpeechOutputManager {
 
         let utterance = AVSpeechUtterance(string: message)
         utterance.voice = AVSpeechSynthesisVoice(identifier: preferredVoiceIdentifier) ?? AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.85
         utterance.volume = 1.0
         synthesizer.speak(utterance)
     }
@@ -246,6 +357,7 @@ final class SpeechInputManager: NSObject, ObservableObject {
     @Published var transcript = ""
     @Published var isRecording = false
     @Published var isPreparing = false
+    @Published var permissionDenied = false
     @Published var errorMessage: String?
 
     private let audioEngine = AVAudioEngine()
@@ -269,9 +381,11 @@ final class SpeechInputManager: NSObject, ObservableObject {
             guard let self else { return }
             if !granted {
                 self.errorMessage = "Microphone and Speech permissions are required."
+                self.permissionDenied = true
                 self.isPreparing = false
                 return
             }
+            self.permissionDenied = false
             self.warmUpAudioSession()
             self.beginRecognition()
         }
@@ -324,6 +438,7 @@ final class SpeechInputManager: NSObject, ObservableObject {
                 DispatchQueue.main.async {
                     let granted = speechGranted && micGranted
                     self.permissionState = granted ? .granted : .denied
+                    self.permissionDenied = !granted
                     completion(granted)
                 }
             }
@@ -423,97 +538,162 @@ private struct MockResponseView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     let response: AssistResponse
+    let requestText: String
     @State private var didSpeakMessage = false
+    @State private var selectedResourceID: String?
 
     private var mapRegion: MKCoordinateRegion {
-        if let first = response.resources.first {
+        guard !response.resources.isEmpty else {
             return MKCoordinateRegion(
-                center: first.coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06)
+                center: CLLocationCoordinate2D(latitude: 39.9526, longitude: -75.1652),
+                span: MKCoordinateSpan(latitudeDelta: 0.12, longitudeDelta: 0.12)
             )
         }
-        return MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 39.9526, longitude: -75.1652),
-            span: MKCoordinateSpan(latitudeDelta: 0.12, longitudeDelta: 0.12)
+
+        let lats = response.resources.map(\.lat)
+        let lngs = response.resources.map(\.lng)
+        let minLat = lats.min() ?? 39.9526
+        let maxLat = lats.max() ?? 39.9526
+        let minLng = lngs.min() ?? -75.1652
+        let maxLng = lngs.max() ?? -75.1652
+        let center = CLLocationCoordinate2D(
+            latitude: (minLat + maxLat) / 2.0,
+            longitude: (minLng + maxLng) / 2.0
         )
+        let span = MKCoordinateSpan(
+            latitudeDelta: max(0.03, (maxLat - minLat) * 1.6),
+            longitudeDelta: max(0.03, (maxLng - minLng) * 1.6)
+        )
+        return MKCoordinateRegion(center: center, span: span)
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(response.message)
-                        .font(.body)
-
-                    Map(initialPosition: .region(mapRegion)) {
-                        ForEach(response.resources) { resource in
-                            Marker(resource.name, coordinate: resource.coordinate)
-                        }
-                    }
-                    .frame(height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .onTapGesture {
-                        if let first = response.resources.first {
-                            openURL(mapsURL(for: first))
-                        }
-                    }
-
-                    ForEach(response.resources) { resource in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(resource.name)
-                                .font(.headline)
-                            Text(resource.address)
-                                .font(.subheadline)
-                            if let hours = resource.hours {
-                                Text("Hours: \(hours)")
-                                    .font(.footnote)
-                            }
-                            HStack(spacing: 12) {
-                                Button {
-                                    openURL(mapsURL(for: resource))
-                                } label: {
-                                    Label("Route", systemImage: "map")
-                                        .font(.footnote)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if let actionPhone = response.actionPhone,
+                           let actionURL = callURL(from: actionPhone)
+                        {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Link(destination: actionURL) {
+                                    Label(primaryActionLabel(for: response), systemImage: "phone.fill")
+                                        .font(.system(size: 22, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .frame(maxWidth: .infinity, minHeight: 68)
+                                        .background(primaryActionColor(for: response))
+                                        .clipShape(RoundedRectangle(cornerRadius: 18))
                                 }
-                                .buttonStyle(.bordered)
 
-                                if let phone = resource.phone {
-                                    if let phoneURL = callURL(from: phone) {
-                                        Link(destination: phoneURL) {
-                                            Label("Call", systemImage: "phone.fill")
-                                                .font(.footnote)
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                    } else {
-                                        Text("Phone: \(phone)")
-                                            .font(.footnote)
+                                if response.crisis == "child_safety",
+                                   actionPhone != "911",
+                                   let emergencyURL = callURL(from: "911")
+                                {
+                                    Link(destination: emergencyURL) {
+                                        Label("Call 911", systemImage: "exclamationmark.triangle.fill")
+                                            .font(.system(size: 18, weight: .semibold))
+                                            .foregroundStyle(.white)
+                                            .frame(maxWidth: .infinity, minHeight: 56)
+                                            .background(Color.red)
+                                            .clipShape(RoundedRectangle(cornerRadius: 16))
                                     }
                                 }
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                        Map(initialPosition: .region(mapRegion)) {
+                            ForEach(response.resources) { resource in
+                                Annotation(resource.name, coordinate: resource.coordinate) {
+                                    Button {
+                                        selectedResourceID = resource.id
+                                    } label: {
+                                        Image(systemName: "mappin.circle.fill")
+                                            .font(.system(size: 28))
+                                            .foregroundStyle(selectedResourceID == resource.id ? .blue : .red)
+                                    }
+                                }
+                            }
+                        }
+                        .frame(height: 220)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+
+                        ForEach(response.resources) { resource in
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(resource.name)
+                                    .font(.system(size: 40, weight: .bold))
+                                    .foregroundStyle(Color(red: 0.04, green: 0.10, blue: 0.20))
+
+                                if let hours = resource.hours {
+                                    Text("Hours: \(hours)")
+                                        .font(.footnote)
+                                }
+                                HStack(spacing: 16) {
+                                    Button {
+                                        openURL(mapsURL(for: resource))
+                                    } label: {
+                                        Image(systemName: "figure.walk")
+                                            .font(.system(size: 40, weight: .regular))
+                                            .foregroundStyle(.white)
+                                            .frame(maxWidth: .infinity, minHeight: 120)
+                                            .background(Color(red: 0.17, green: 0.78, blue: 0.39))
+                                            .clipShape(RoundedRectangle(cornerRadius: 28))
+                                    }
+
+                                    if let phone = resource.phone {
+                                        if let phoneURL = callURL(from: phone) {
+                                            Link(destination: phoneURL) {
+                                                Image(systemName: "phone.fill")
+                                                    .font(.system(size: 40, weight: .regular))
+                                                    .foregroundStyle(.white)
+                                                    .frame(maxWidth: .infinity, minHeight: 120)
+                                                    .background(Color(red: 0.96, green: 0.72, blue: 0.31))
+                                                    .clipShape(RoundedRectangle(cornerRadius: 28))
+                                            }
+                                        } else {
+                                            Text("Phone: \(phone)")
+                                                .font(.footnote)
+                                        }
+                                    }
+                                }
+                                Text(resource.address)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 4)
+                            .padding(8)
+                            .background(Color.clear)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(selectedResourceID == resource.id ? Color.blue : Color.clear, lineWidth: 2)
+                            }
+                            .id(resource.id)
+                        }
+                    }
+                    .padding(24)
+                }
+                .onChange(of: selectedResourceID) { _, newID in
+                    guard let newID else { return }
+                    withAnimation {
+                        proxy.scrollTo(newID, anchor: .top)
                     }
                 }
-                .padding()
-            }
-            .navigationTitle("Mock Response")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                .navigationTitle(requestText.isEmpty ? "Request" : requestText)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { dismiss() }
+                    }
                 }
-            }
-            .onAppear {
-                if !didSpeakMessage {
-                    SpeechOutputManager.shared.speak(response.message)
-                    didSpeakMessage = true
+                .onAppear {
+                    if !didSpeakMessage {
+                        SpeechOutputManager.shared.speak(response.message)
+                        didSpeakMessage = true
+                    }
                 }
-            }
-            .onDisappear {
-                SpeechOutputManager.shared.stop()
+                .onDisappear {
+                    SpeechOutputManager.shared.stop()
+                }
             }
         }
     }
@@ -536,6 +716,29 @@ private struct MockResponseView: View {
         let digits = phone.filter { $0.isNumber || $0 == "+" }
         guard !digits.isEmpty else { return nil }
         return URL(string: "tel://\(digits)")
+    }
+
+    private func primaryActionLabel(for response: AssistResponse) -> String {
+        guard let phone = response.actionPhone else { return "Call" }
+        switch response.crisis {
+        case "suicide":
+            return "Call or Text \(phone)"
+        case "emergency":
+            return "Call \(phone) Now"
+        case "child_safety":
+            return "Call Childline"
+        default:
+            return "Call \(phone)"
+        }
+    }
+
+    private func primaryActionColor(for response: AssistResponse) -> Color {
+        switch response.crisis {
+        case "suicide", "emergency", "child_safety":
+            return .red
+        default:
+            return Color(red: 0.96, green: 0.72, blue: 0.31)
+        }
     }
 }
 
