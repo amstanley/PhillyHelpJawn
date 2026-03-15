@@ -162,6 +162,7 @@ export async function handleQuery(
   let collectedResources: Resource[] = [];
   let detectedCrisis: CrisisType | null = null;
   let redirectReason: RedirectReason | null = null;
+  let searchCalled = false;
 
   const messages: Anthropic.MessageParam[] = [
     { role: "user", content: queryText },
@@ -186,6 +187,7 @@ export async function handleQuery(
     let toolResult: string;
 
     if (toolBlock.name === "search_resources") {
+      searchCalled = true;
       const results = await searchResources(toolBlock.input);
       collectedResources = [...collectedResources, ...results];
       toolResult = JSON.stringify(results);
@@ -229,7 +231,7 @@ export async function handleQuery(
   // Server-side guardrail: if Claude never called any tool, it went off-script.
   // This catches prompt injection and off-topic requests that bypass the system prompt.
   const usedAnyTool =
-    collectedResources.length > 0 ||
+    searchCalled ||
     detectedCrisis !== null ||
     redirectReason !== null;
   if (!usedAnyTool) {
