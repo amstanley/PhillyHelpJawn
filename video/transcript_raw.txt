@@ -1,0 +1,51 @@
+[0005.10-0015.10] On March 15th at Indie Hall, they had a big meet-up where they invited members of all the different meet-ups from around Philadelphia to come together to build things.
+[0015.10-0021.10] The idea for the meet-up was being good neighbors, which was inspiring.
+[0021.10-0030.10] And so I went without really knowing what I was going to do, but I thought it would be really nice if I could try and make something that would be useful to someone in some way.
+[0030.10-0043.83] When they asked for ideas from everybody, I got up kind of randomly on impulse, and I told everybody a story about a time that I had been in a dive bar in Delaware.
+[0043.83-0049.83] And the guy sitting next to me was a dishwasher who was unemployed. He'd lost his job.
+[0049.83-0058.83] They couldn't find a new job because everybody wanted a resume, and he told me several times he's illiterate, so he couldn't build one.
+[0058.83-0068.83] I asked him, I said, hey, do you have AI? Could AI help you? And he looked at me and he said, why would I use AI? How could I ever do anything with that?
+[0068.83-0077.83] And that stayed with me that this tool that could really help people who needed help like that didn't seem to be accessible, and maybe we should do something about that.
+[0077.83-0089.14] So I sat back down thinking, hey, this isn't going to go anywhere. And all of a sudden people started getting in front of me and saying, hey, I really want to help. That was inspiring.
+[0089.14-0094.14] M was first. M's a back-end software engineer, a really smart one.
+[0094.14-0104.14] Georgia was next. They know all about learning technology and challenges of people of that sort, and Carl's a great designer, understood it all really well.
+[0104.14-0106.14] And I can build things, so now we had a team.
+[0107.14-0114.14] Georgia went first and found a lot of evidence, but there are tons of people in Philadelphia who are challenged by low literacy.
+[0114.14-0119.14] And what that means is that it's hard to use the tools to find services.
+[0119.14-0128.14] And even when you do, you look at the material that is available, it's confusing for anybody to be able to understand where you would go and at what time of day,
+[0128.14-0134.14] and whether or not you're allowed to access that service or not, depending on who you are and what situation you're in.
+[0134.14-0141.14] It's confusing for all of us. We can't imagine what it would be like for somebody without the tools and the education.
+[0141.14-0149.14] Carl went further. He was really clear that when you're working with low literacy people, then you need iconography.
+[0149.14-0153.14] You need visual. You need a voice-first interface.
+[0153.14-0157.14] And then you have to look at the use cases because people might be in crisis.
+[0157.14-0167.14] People might not know what they're asking for, and you have to be able to meet those needs in the moment in a way that they can access.
+[0167.14-0181.14] M took all of that in and then built a really sophisticated back-end using Quad, using SuperBase, using Railway, all built-in TypeScript,
+[0181.14-0187.14] that I could send to that back-end something that the user had spoken,
+[0187.14-0196.14] and it would interpret that and come back with the suggestions that were needed to power the user interface and ultimately help the user.
+[0196.14-0202.14] I built an iPhone app that respected the back-end contract that M defined.
+[0202.14-0214.14] It uses really large icons that Carl gave for the UX, and we kept text to an absolute minimum because the user is a low literacy person and text would just be confusing.
+[0214.14-0221.14] It's voice-first. We use voice to communicate in both directions, and we think that's really important for making the app usable.
+[0221.14-0229.14] We call it Philly Help John because we are Philly. We are helping, and it's a John, and this is how it works.
+[0229.14-0239.78] I need help finding a job, so I don't have to live on the street.
+[0239.78-0250.77] I understand you need work to help with your housing. PA CareerLink can help you find a job. They do career coaching and help with resumes.
+[0250.77-0265.52] The closest one is PA CareerLink at 1617 John F. Kennedy Boulevard. Their phone number is 215-557-2592.
+[0265.52-0273.52] They open Tuesday morning at 8 o'clock and stay open until 4.30 in the afternoon Monday through Friday. They can...
+[0273.52-0277.52] I need a place to sleep tonight.
+[0277.52-0286.50] I found some places that can help you tonight. Here are shelters that are open right now.
+[0286.50-0291.50] Acts after our intake site is open at 1300 East Tulpahawk and Street.
+[0291.50-0298.50] They help families and are open from 5 at night until 7 in the morning on weekdays and all day on weekends.
+[0298.50-0313.09] You can call them at 267-297-7870. If you are a woman, you can go to Godencia's House of Passage at 111 North 49th Street.
+[0313.09-0326.15] They are open from 5 at night until 7 in the morning on weekdays and all day on weekends.
+[0326.15-0330.15] I need to eat. Where can I find a meal?
+[0330.15-0344.06] I'm sorry, but there are no food places open right now. It's late in the evening on Monday. You can call 2-1-1 for help finding food.
+[0344.06-0353.06] They are free and open all day and night. Just dial 2-1-1 from any phone. Many food places open in the morning.
+[0353.06-0362.06] You might also check if any nearby stores or restaurants are still open tonight. You can also call 2-1-1 for help.
+[0362.06-0369.01] I'm so tired of this. I don't know if I can do it much longer.
+[0369.01-0384.12] It sounds like you are going through something really hard. Please call or text 988 right now. They are free, private and available all day and night. You do not have to go through this alone.
+[0384.12-0400.91] So that's the app that we built over a period of about 6 hours from the moment we met each other for the first time until the end of the hackathon, where then we got up and we presented it.
+[0400.91-0407.91] And we thought for a moment that maybe we had actually built something that could help someone in some meaningful way.
+[0407.91-0416.91] We have no idea what we're going to do with this next. It is open source. It's on GitHub. If you search for affiliate help, John, you will find it.
+[0416.91-0429.91] And if you've looked at this and thought, hey, that's really cool and had ideas about how we could extend it or who we could talk to to partner with to maybe get this out into the world.
+[0429.91-0435.91] And in the hands of people who really need it, we'd love to talk to you. We'd love to hear your ideas.
+[0435.91-0446.91] For now, all I can say is that we were really inspired by the hackathon and the idea of good neighbors. And we really loved the idea that we could build something that could help people.
+[0446.91-0454.91] And we're hoping that we can take this seed that we planted. Maybe if we're lucky and we all work together, we can help it grow.

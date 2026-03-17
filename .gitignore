@@ -6,3 +6,6 @@ dist/
 *.xcuserstate
 **/xcuserdata/
 
+
+.DS_Store
+*.mp4
