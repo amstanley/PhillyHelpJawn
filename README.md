@@ -1,6 +1,6 @@
 # PhillyHelpJawn
 
-PhillyHelpJawn is an iPhone-first assistant that helps people in Philadelphia find basic-needs services such as food and shelter through a voice-forward and low-literacy-friendly interface.
+PhillyHelpJawn is an iPhone-first assistant that helps people in Philadelphia find basic-needs services such as food and shelter through a voice-forward and low-literacy-friendly interface. It is the winner of the hackathon award for 'Most Helpful Use of AI' — Signature Category award sponsored by [OmbuLabs.ai](https://ombulabs.ai).
 
 ## Origin Story
 
