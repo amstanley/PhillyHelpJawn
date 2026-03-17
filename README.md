@@ -18,7 +18,7 @@ Watch the build story on YouTube: [PhillyHelpJawn origin video](https://youtu.be
 
 ### Early App Snapshot
 
-![PhillyHelpJawn app screenshot](video/PhillyHelpJawn%20Video%20assets/IMG_4840.PNG)
+<img src="video/PhillyHelpJawn%20Video%20assets/IMG_4840.PNG" alt="PhillyHelpJawn app screenshot" width="20%" />
 
 ## Purpose
 
